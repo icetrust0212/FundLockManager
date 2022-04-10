@@ -50,23 +50,37 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         _denominationToken = ERC20(erc20Token);
     }
 
+    //for receiving eth
+    receive() external payable{}
+
     /**
-        @dev Sender will send eth to this, and swap it with denomination ERC20 token on uniswap, and create lock funds
+        @dev get current plan's length
+     */
+    function getTotalPlanCount() external view returns(uint256) {
+        return _planCounter.current();
+    }
+
+    /**
+        @dev Sender will send eth to this, and if swap is true, swap it with denomination ERC20 token on uniswap, and create lock funds
         @param unlocker The address that will be able to unlock the funds within lock time
         @param lockTime lock time
+        @param swap if true, swap with denomination asset 
     */
-    function LockEthWithSwapToken(address unlocker, uint lockTime) external payable {
+    function LockEth(address unlocker, uint lockTime, bool swap) external payable {
         require(msg.value > 0, "Eth amount should be great zero");
         require(unlocker != address(0), "unlocker cannot be zero");
         require(lockTime > 0, "LockTime is too short");
 
         //do swap with token
-        uint amount = swapEthForToken();
-
-        //create lock funds
-        createNewERC20Plan(amount, unlocker, lockTime);
+        if (swap) {
+            uint amount = swapEthForToken();
+            //create lock funds
+            createNewERC20Plan(amount, unlocker, lockTime);
+        } else {
+            //create lock funds
+            createNewEthPlan(msg.value, unlocker, lockTime);
+        }
     }
-
    
     /**
         @dev Sender swaps any ERC20 token with Eth on uniswap, and create lock funds
@@ -74,68 +88,29 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         @param unlocker The address that will be able to unlock the funds within lock time
         @param amount ERC20 token amount
         @param lockTime lock time
+        @param isToken if true, create new token plan, else create new eth plan.
     */
-    function LockTokenWithSwapEth(address erc20Token, uint amount, address unlocker, uint lockTime) external {
+    function LockToken(address erc20Token, uint amount, address unlocker, uint lockTime, bool isToken) external {
         require(amount > 0, "Eth amount should be great zero");
         require(unlocker != address(0), "unlocker cannot be zero");
         require(lockTime > 0, "LockTime is too short");
-        require(ERC20(erc20Token).allowance(msg.sender, address(_uniswapV2Router)) >= amount, "Allowance is not enough.");
+        require(ERC20(erc20Token).allowance(msg.sender, address(this)) >= amount, "Allowance is not enough.");
+        require(ERC20(erc20Token).transferFrom(msg.sender, address(this), amount), "Transfer Failed.");
 
-        //do swap with token
-        uint ethAmount = swapTokenForEth(erc20Token, amount);
-
-        //create lock funds
-        createNewEthPlan(ethAmount, unlocker, lockTime);
-    }
-
-   /**
-        @dev Sender swaps any ERC20 token with denomination ERC20 token on uniswap, and create lock funds
-        @param erc20Token Any ERC20 token for swap
-        @param unlocker The address that will be able to unlock the funds within lock time
-        @param amount ERC20 token amount
-        @param lockTime lock time
-    */
-    function LockTokenWithSwapToken(address erc20Token, uint amount, address unlocker, uint lockTime) external {
-        require(amount > 0, "Eth amount should be great zero");
-        require(unlocker != address(0), "unlocker cannot be zero");
-        require(lockTime > 0, "LockTime is too short");
-        require(erc20Token != address(_denominationToken), "Same token.");
-        require(ERC20(erc20Token).allowance(msg.sender, address(_uniswapV2Router)) >= amount, "Allowance is not enough.");
-
-        //do swap with token
-        uint tokenAmount = swapTokenForToken(erc20Token, amount);
-
-        //create lock funds
-        createNewERC20Plan(tokenAmount, unlocker, lockTime);
-    }
-
-    /**
-        @dev Sender deposite eth directly
-        @param unlocker The address that will be able to unlock the funds within lock time
-        @param lockTime lock time
-    */
-    function LockEth( address unlocker, uint lockTime) external payable {
-        require(msg.value > 0, "Eth amount should be great zero");
-        require(unlocker != address(0), "unlocker cannot be zero");
-        require(lockTime > 0, "LockTime is too short");
-
-        //create lock funds
-        createNewEthPlan(msg.value, unlocker, lockTime);
-    }
-
-    /**
-        @dev Sender deposite denomination ERC20 token directly
-        @param amount The amount of denomination ERC20 token
-        @param unlocker The address that will be able to unlock the funds within lock time
-        @param lockTime lock time
-    */
-    function LockToken(uint amount, address unlocker, uint lockTime) external {
-        require(unlocker != address(0), "unlocker cannot be zero");
-        require(lockTime > 0, "LockTime is too short");
-        require(ERC20(_denominationToken).allowance(msg.sender, address(this)) >= amount, "Allowance is not enough.");
-
-        //create lock funds
-        createNewERC20Plan(amount, unlocker, lockTime);
+        uint _amount = amount;
+        bool swap = (erc20Token != address(_denominationToken)); 
+        if (swap) {
+            require(ERC20(erc20Token).approve(address(_uniswapV2Router), amount), "Transfer Not Allowed");
+        }
+        if (isToken) {
+            if (swap) {
+                _amount = swapTokenForToken(erc20Token, amount);
+            }
+            createNewERC20Plan(_amount, unlocker, lockTime);
+        } else {
+            _amount = swapTokenForEth(erc20Token, amount);
+            createNewEthPlan(_amount, unlocker, lockTime);
+        }
     }
 
     /**
@@ -157,7 +132,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
             0, // accept any amount of ETH
             path,
             address(this),
-            block.timestamp
+            block.timestamp + 300
         );
         uint currentBalance = address(this).balance;
 
@@ -180,7 +155,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
             0,
             path,
             address(this),
-            block.timestamp
+            block.timestamp + 300
         );
         uint currentBalance = _denominationToken.balanceOf(address(this));
         return currentBalance.sub(originBalance);
@@ -246,7 +221,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         @param lockTime: lock time
     **/ 
 
-    function createNewERC20Plan( uint256 amount, address unlocker, uint256 lockTime) internal {
+    function createNewERC20Plan( uint256 amount, address unlocker, uint256 lockTime ) internal {
         Plan memory _newPlan = Plan({
             id: _planCounter.current(),
             owner: msg.sender,
@@ -268,7 +243,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         @param owner owner of plans
     **/
 
-    function getPlansByOwner(address owner) external view returns(Plan[] memory) {
+    function getPlansByOwner(address owner) public view returns(Plan[] memory) {
         Plan[] memory plans = new Plan[](_plans.length);
         uint counter = 0;
         for (uint i = 0 ; i < _plans.length ; i ++ ) {
@@ -282,7 +257,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
     }
 
     /**
-        @dev Get certain plan per owner already expired.
+        @dev Get certain plan per unlocker claimable.
         @param unlocker unlocker of plan
      */
 
@@ -291,7 +266,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         uint counter = 0;
         for (uint i = 0 ; i < _plans.length ; i ++ ) {
             Plan memory plan = _plans[i];
-            if (plan.unlocker == unlocker && block.timestamp > plan.lockTime && plan.isClaimable) {
+            if (plan.unlocker == unlocker && block.timestamp < plan.lockTime && plan.isClaimable) {
                 plans[counter] = plan;
                 counter ++;
             }
@@ -310,14 +285,13 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         Plan storage plan = _plans[id];
 
         require(plan.unlocker == msg.sender, "You are not unlocker.");
-        require(plan.lockTime < block.timestamp, "Fund expired.");
+        require(plan.lockTime > block.timestamp, "Fund expired.");
         require(plan.isClaimable, "Fund already claimed.");
 
         plan.isClaimable = false;
 
-
         if (plan.isToken) {
-            _denominationToken.transfer(msg.sender, plan.amount);
+            require(_denominationToken.transfer(msg.sender, plan.amount), "Transfer Failed.");
         } else {
              (bool sent, bytes memory data) = msg.sender.call{value: plan.amount}("");
             require(sent, "Failed to send Ether");
@@ -341,12 +315,31 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         plan.isClaimable = false;
 
         if (plan.isToken) {
-            _denominationToken.transfer(msg.sender, plan.amount);
+            require(_denominationToken.transfer(msg.sender, plan.amount), "Transfer Failed.");
         } else {
              (bool sent, bytes memory data) = msg.sender.call{value: plan.amount}("");
             require(sent, "Failed to send Ether");
         }
-        
       }
+
+    /**
+        @dev Retrieve unclaimed locked funds after locktime 
+     */
+
+    function getUnClaimedFunds() external view returns(Plan[] memory) {
+        Plan[] memory myPlans = getPlansByOwner(msg.sender);
+        Plan[] memory unClaimedFunds = new Plan[](myPlans.length);
+        
+        uint counter = 0;
+        for (uint i = 0; i < myPlans.length ; i ++) {
+            Plan memory plan = myPlans[i];
+            if ( block.timestamp > plan.lockTime && plan.isClaimable) {
+                unClaimedFunds[counter] = plan;
+                counter ++;
+            }
+        }
+
+        return unClaimedFunds;
+    }
 
 }
