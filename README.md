@@ -1,3 +1,8 @@
+# Setup
+```shell
+yarn install
+```
+
 # Deploy
 ```shell
 yarn deploy  //deploy to hardhat local testnet
