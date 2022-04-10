@@ -1,5 +1,6 @@
 # Setup
 ```shell
+mv .env.example .env
 yarn install
 ```
 
