@@ -27,6 +27,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
     }
 
     ERC20 public _denominationToken;
+    mapping(address => bool) public allowedTokens;
 
     // plans per address
     Plan[] public _plans;
@@ -45,9 +46,28 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         uint lockTime
     );
 
+    event NewTokenRegistered (
+        address erc20
+    );
+
+    modifier allowedToken(address token) {
+        require(allowedTokens[token], "This token is not accepted.");
+        _;
+    }
+
     
     constructor(address erc20Token) {
         _denominationToken = ERC20(erc20Token);
+        allowedTokens[erc20Token] = true;
+    }
+
+    /**
+        @dev Register new acceptable token
+        @param newERC20TokenAddress acceptable token address
+     */
+    function registerToken(address newERC20TokenAddress) external onlyOwner {
+        allowedTokens[newERC20TokenAddress] = true;
+        emit NewTokenRegistered(newERC20TokenAddress);
     }
 
     //for receiving eth
@@ -90,7 +110,7 @@ contract FundLockManager is Ownable, ReentrancyGuard {
         @param lockTime lock time
         @param isToken if true, create new token plan, else create new eth plan.
     */
-    function LockToken(address erc20Token, uint amount, address unlocker, uint lockTime, bool isToken) external {
+    function LockToken(address erc20Token, uint amount, address unlocker, uint lockTime, bool isToken) external allowedToken(erc20Token) {
         require(amount > 0, "Eth amount should be great zero");
         require(unlocker != address(0), "unlocker cannot be zero");
         require(lockTime > 0, "LockTime is too short");

@@ -28,18 +28,21 @@ describe("FundLockManager", function () {
     const contractFactory = await ethers.getContractFactory("FundLockManager"); 
     fundLockManager = await contractFactory.deploy(denominationTokenAddress);
     await fundLockManager.deployed();
+
     
     denominationERC20 = new ethers.Contract(denominationTokenAddress, ERC20ABI, ethers.provider);
     DAIContract = new ethers.Contract(DAI_ADDRESS, ERC20ABI, ethers.provider);
     uniswapV2Router = new ethers.Contract(uniswapV2RouterAddress, IUniswapV2Router, ethers.provider);
     wethContract = new ethers.Contract(WETH_ADDRESS, ERC20ABI, ethers.provider)
-
+    
     const {deployer, fundOwner, unlocker, other} = await getNamedAccounts();
     _signer = await ethers.getSigner(deployer);
     _fundOwner = await ethers.getSigner(fundOwner);
     _unlocker = await ethers.getSigner(unlocker);
     _other = await ethers.getSigner(other);
-
+    
+    await fundLockManager.connect(_signer).registerToken(DAI_ADDRESS);
+    
     //fund usdc and DAI to the fundOwner
     let path = [WETH_ADDRESS, DAI_ADDRESS];
 

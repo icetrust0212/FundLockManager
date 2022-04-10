@@ -1,10 +1,9 @@
 import { DeployFunction } from 'hardhat-deploy/types';
-import { calculate_whitelist_root } from '../whitelist/utils';
 
 const fn: DeployFunction = async function ({ deployments: { deploy }, ethers: { getSigners }, network }) {
   const deployer = (await getSigners())[0];
 
-  const denominationTokenAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7"; // Mainnet USDT address
+  const denominationTokenAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; // Mainnet USDC address
 
   const contractDeployed = await deploy('FundLockManager', {
     from: deployer.address,
