@@ -94,9 +94,11 @@ const config: CustomUserConfig = {
     mainnet: {
       hardfork: 'istanbul',
       url: node('mainnet'),
+      accounts: accounts('ropsten')
     },
     ropsten: {
-      url: process.env.ROPSTEN_URL || "",
+      url: node('ropsten'),
+      accounts: accounts('ropsten')
     },
   },
   gasReporter: {

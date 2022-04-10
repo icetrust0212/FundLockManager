@@ -17,9 +17,10 @@ const fn: DeployFunction = async function ({ deployments: { deploy }, ethers: { 
 
 };
 fn.skip = async (hre) => {
-  // Skip this on kovan.
+  return false;
+  // Skip this on ropsten or hardhat.
   const chain = parseInt(await hre.getChainId());
-  return chain !== 31337;
+  return (chain !== 31337) && (chain !== 42);
 };
 fn.tags = ['FundLockManager'];
 

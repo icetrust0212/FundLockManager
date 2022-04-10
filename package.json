@@ -6,9 +6,9 @@
     "compile": "hardhat compile",
     "deploy": "hardhat deploy --network hardhat",
     "deploy:mainnet": "hardhat deploy --network mainnet",
-    "deploy:kovan": "hardhat deploy --network kovan",
+    "deploy:ropsten": "hardhat deploy --network ropsten",
     "verify:mainnet": "hardhat etherscan-verify --network mainnet",
-    "verify:kovan": "hardhat etherscan-verify --network kovan",
+    "verify:ropsten": "hardhat etherscan-verify --network ropsten",
     "export:mainnet": "hardhat export --network mainnet --export deployments/mainnet.json"
   },
   "devDependencies": {
